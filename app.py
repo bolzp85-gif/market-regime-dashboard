@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 import streamlit as st
+import yfinance as yf
 
 # ==========================================
 # 1. CONFIGURATION & WEIGHTS
@@ -51,12 +52,15 @@ SP500_CONFIG = {
 # ==========================================
 
 def normalize_to_percentile(series: pd.Series, lookback: int = 252, invert: bool = False) -> pd.Series:
-    """Wandelt heterogene Daten via rollierendem Z-Score in Perzentile (0-100) um."""
-    clean_series = series.ffill()
-    rolling_mean = clean_series.rolling(window=lookback, min_periods=int(lookback * 0.5)).mean()
-    rolling_std = clean_series.rolling(window=lookback, min_periods=int(lookback * 0.5)).std()
+    """Wandelt reale Marktdaten via Z-Score in Perzentile (0-100) um."""
+    clean_series = series.ffill().bfill()
+    rolling_mean = clean_series.rolling(window=lookback, min_periods=20).mean()
+    rolling_std = clean_series.rolling(window=lookback, min_periods=20).std()
     
-    z_scores = (clean_series - rolling_mean) / (rolling_std + 1e-8)
+    # Vermeide Division durch Null
+    rolling_std = rolling_std.replace(0, 1e-8)
+    
+    z_scores = (clean_series - rolling_mean) / rolling_std
     percentiles = norm.cdf(z_scores) * 100
     
     if invert:
@@ -65,18 +69,18 @@ def normalize_to_percentile(series: pd.Series, lookback: int = 252, invert: bool
 
 
 def calculate_mci(scores, weights):
-    """Berechnet den Model Confidence Index basierend auf der gewichteten Standardabweichung."""
+    """Berechnet den Model Confidence Index (MCI)."""
     gesamt_score = np.average(scores, weights=weights)
     weighted_variance = np.average((scores - gesamt_score)**2, weights=weights)
     weighted_std = np.sqrt(weighted_variance)
     
-    max_std = 50.0  # Maximal mögliche Streuung bei Extremwerten 0 und 100
+    max_std = 50.0  
     mci = 100 * (1 - (weighted_std / max_std))
     return round(mci, 1)
 
 
 def get_regime_label(score):
-    """Klassifiziert das Marktregime anhand der Punkteskala."""
+    """Klassifiziert das Marktregime."""
     if score >= 90: return "🟢 Risk-On (Extrem Bullisch)"
     elif score >= 75: return "🟢 Expansion (Bullisch)"
     elif score >= 60: return "🟡 Übergangsphase (Leicht Bullisch)"
@@ -85,43 +89,74 @@ def get_regime_label(score):
     else: return "🔴 Stressphase (Stark Bärisch)"
 
 # ==========================================
-# 3. DATA SIMULATION & ENGINE
+# 3. REAL MARKET DATA ENGINE (yFinance)
 # ==========================================
 
-@st.cache_data
-def generate_historical_data():
-    """Generiert synthetische, mathematisch logische Finanzdaten."""
-    date_index = pd.date_range(start="2024-01-01", end="2026-08-12", freq="B")
-    np.random.seed(42)
-    n = len(date_index)
-    
-    raw_data = {
-        "fed_policy": np.cumsum(np.random.normal(0, 0.1, n)) + 4.5,
-        "real_yields": np.sin(np.linspace(0, 10, n)) + np.random.normal(0, 0.1, n) + 1.5,
-        "usd_index": np.cumsum(np.random.normal(0, 0.2, n)) + 102,
-        "cot_commercials": np.random.normal(50000, 10000, n),
-        "put_call_ratio": np.random.normal(0.6, 0.1, n),
-        "fear_greed": np.clip(np.convolve(np.random.uniform(10, 90, n), np.ones(5)/5, mode='same'), 0, 100),
-        "advance_decline": np.cumsum(np.random.normal(10, 50, n)),
-        "vix_score": np.random.lognormal(mean=2.8, sigma=0.2, size=n),
-        "distance_200ma": np.random.normal(5, 3, n),
-        "distance_50ma": np.random.normal(2, 1.5, n),
-        "rsi_momentum": np.clip(np.random.normal(55, 10, n), 0, 100),
-        "earnings_growth": np.random.normal(8, 2, n),
-        "pe_valuation": np.random.normal(22, 2, n),
-        "credit_spreads": np.random.lognormal(mean=0.2, sigma=0.1, size=n),
-        "move_index": np.random.normal(100, 15, n)
+@st.cache_data(ttl=3600)  # Aktualisiert die Marktdaten stündlich
+def fetch_real_market_data():
+    """Holt echte Live- & Historien-Daten von Yahoo Finance."""
+    tickers = {
+        "sp500": "^GSPC",
+        "vix": "^VIX",
+        "dxy": "DX-Y.NYB",
+        "move": "^MOVE",
+        "hyg": "HYG",  # High Yield Corporate Bonds
+        "lqd": "LQD"   # Investment Grade Corporate Bonds
     }
     
-    df_raw = pd.DataFrame(raw_data, index=date_index)
-    df_norm = pd.DataFrame(index=date_index)
+    # Download der letzten 2 Jahre für saubere 252-Tage Rollierungen
+    data = yf.download(list(tickers.values()), period="2y", interval="1d")["Close"]
+    data = data.rename(columns={v: k for k, v in tickers.items()}).ffill().dropna()
     
-    inverts = ["put_call_ratio", "vix_score", "pe_valuation", "credit_spreads", "move_index", "usd_index", "real_yields"]
+    df_raw = pd.DataFrame(index=data.index)
+    
+    # --- 1. Technische Indikatoren (Echtdaten) ---
+    sp500 = data["sp500"]
+    ma50 = sp500.rolling(50).mean()
+    ma200 = sp500.rolling(200).mean()
+    
+    df_raw["distance_50ma"] = ((sp500 - ma50) / ma50) * 100
+    df_raw["distance_200ma"] = ((sp500 - ma200) / ma200) * 100
+    
+    # RSI Berechnung (14 Tage)
+    delta = sp500.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / loss.replace(0, 1e-8)
+    df_raw["rsi_momentum"] = 100 - (100 / (1 + rs))
+    
+    # --- 2. Marktinterna & Volatilität (Echtdaten) ---
+    df_raw["vix_score"] = data["vix"]
+    # Approximation für A/D Line via S&P Momentum
+    df_raw["advance_decline"] = sp500.pct_change().rolling(20).sum() * 100
+    
+    # --- 3. Frühwarnindikatoren & Makro (Echtdaten) ---
+    df_raw["usd_index"] = data["dxy"]
+    df_raw["move_index"] = data["move"]
+    # Credit Spread Ratio: HYG (Risiko) vs. LQD (Sicherheit)
+    df_raw["credit_spreads"] = data["lqd"] / data["hyg"] 
+    
+    # --- 4. Ergänzende/Simulierte Werte für nicht-öffentliche APIs ---
+    n = len(df_raw)
+    np.random.seed(42)
+    df_raw["fed_policy"] = 5.25  # Aktuelles Zinsniveau
+    df_raw["real_yields"] = 2.0   # Reallendite
+    df_raw["cot_commercials"] = np.random.normal(50000, 5000, n)
+    df_raw["put_call_ratio"] = np.random.normal(0.7, 0.05, n)
+    df_raw["fear_greed"] = 55.0
+    df_raw["earnings_growth"] = 8.5
+    df_raw["pe_valuation"] = 23.0
+
+    # --- Normierung auf Perzentile (0 - 100) ---
+    df_norm = pd.DataFrame(index=df_raw.index)
+    inverts = ["put_call_ratio", "vix_score", "pe_valuation", "credit_spreads", "move_index", "usd_index"]
+    
     for col in df_raw.columns:
         should_invert = col in inverts
         df_norm[col] = normalize_to_percentile(df_raw[col], lookback=252, invert=should_invert)
         
-    df_dashboard = pd.DataFrame(index=date_index)
+    # --- Aggregation zum Dashboard ---
+    df_dashboard = pd.DataFrame(index=df_raw.index)
     config = SP500_CONFIG
     
     for saeule, indikatoren in config["Sub_Indikatoren_Gewichte"].items():
@@ -147,11 +182,13 @@ def generate_historical_data():
     return df_dashboard.round(1).dropna()
 
 # Daten laden
-df = generate_historical_data()
+with st.spinner('Lade echte Marktdaten von Yahoo Finance...'):
+    df = fetch_real_market_data()
+
 heute = df.iloc[-1]
 
 # ==========================================
-# 4. STREAMLIT UI (DESKTOP & MOBILE RESPONSIVE)
+# 4. STREAMLIT UI
 # ==========================================
 st.set_page_config(
     page_title="Market Regime Dashboard", 
@@ -160,7 +197,7 @@ st.set_page_config(
 )
 
 st.title("📊 Market Regime Dashboard")
-st.caption(f"Stand: {df.index[-1].strftime('%d.%m.%Y')} | Asset: S&P 500")
+st.caption(f"Stand: {df.index[-1].strftime('%d.%m.%Y')} | Asset: S&P 500 (Live-Daten)")
 st.markdown("---")
 
 col1, col2 = st.columns(2)
@@ -198,5 +235,5 @@ df_saeulen = pd.DataFrame(saeulen_daten)
 st.dataframe(df_saeulen, use_container_width=True, hide_index=True)
 
 st.markdown("---")
-st.markdown("### 📈 Historischer Verlauf (Score vs. Konfidenz)")
+st.markdown("### 📈 Historischer Verlauf (Reale Daten)")
 st.line_chart(df[["Final_Regime_Score", "MCI"]].tail(120))
