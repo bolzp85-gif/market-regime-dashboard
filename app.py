@@ -3,6 +3,7 @@ import pandas as pd
 from scipy.stats import norm
 import streamlit as st
 import yfinance as yf
+from fredapi import Fred
 
 # ==========================================
 # 1. CONFIGURATION & WEIGHTS
@@ -57,7 +58,6 @@ def normalize_to_percentile(series: pd.Series, lookback: int = 252, invert: bool
     rolling_mean = clean_series.rolling(window=lookback, min_periods=20).mean()
     rolling_std = clean_series.rolling(window=lookback, min_periods=20).std()
     
-    # Vermeide Division durch Null
     rolling_std = rolling_std.replace(0, 1e-8)
     
     z_scores = (clean_series - rolling_mean) / rolling_std
@@ -89,28 +89,30 @@ def get_regime_label(score):
     else: return "🔴 Stressphase (Stark Bärisch)"
 
 # ==========================================
-# 3. REAL MARKET DATA ENGINE (yFinance)
+# 3. REAL MARKET DATA ENGINE (yFinance & FRED)
 # ==========================================
 
-@st.cache_data(ttl=3600)  # Aktualisiert die Marktdaten stündlich
+# ⚠️ FÜGE HIER DEINEN KOSTENLOSEN FRED API-SCHLÜSSEL EIN:
+FRED_API_KEY = "DEIN_FRED_API_KEY_HIER"
+
+@st.cache_data(ttl=3600)
 def fetch_real_market_data():
-    """Holt echte Live- & Historien-Daten von Yahoo Finance."""
+    """Holt echte Live- & Historien-Daten von Yahoo Finance und FRED."""
     tickers = {
         "sp500": "^GSPC",
         "vix": "^VIX",
         "dxy": "DX-Y.NYB",
         "move": "^MOVE",
-        "hyg": "HYG",  # High Yield Corporate Bonds
-        "lqd": "LQD"   # Investment Grade Corporate Bonds
+        "hyg": "HYG",
+        "lqd": "LQD"
     }
     
-    # Download der letzten 2 Jahre für saubere 252-Tage Rollierungen
     data = yf.download(list(tickers.values()), period="2y", interval="1d")["Close"]
     data = data.rename(columns={v: k for k, v in tickers.items()}).ffill().dropna()
     
     df_raw = pd.DataFrame(index=data.index)
     
-    # --- 1. Technische Indikatoren (Echtdaten) ---
+    # --- 1. Technische Indikatoren (yFinance) ---
     sp500 = data["sp500"]
     ma50 = sp500.rolling(50).mean()
     ma200 = sp500.rolling(200).mean()
@@ -118,29 +120,42 @@ def fetch_real_market_data():
     df_raw["distance_50ma"] = ((sp500 - ma50) / ma50) * 100
     df_raw["distance_200ma"] = ((sp500 - ma200) / ma200) * 100
     
-    # RSI Berechnung (14 Tage)
     delta = sp500.diff()
     gain = (delta.where(delta > 0, 0)).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     rs = gain / loss.replace(0, 1e-8)
     df_raw["rsi_momentum"] = 100 - (100 / (1 + rs))
     
-    # --- 2. Marktinterna & Volatilität (Echtdaten) ---
+    # --- 2. Marktinterna (yFinance) ---
     df_raw["vix_score"] = data["vix"]
-    # Approximation für A/D Line via S&P Momentum
     df_raw["advance_decline"] = sp500.pct_change().rolling(20).sum() * 100
     
-    # --- 3. Frühwarnindikatoren & Makro (Echtdaten) ---
+    # --- 3. Frühwarnindikatoren & Dollar (yFinance) ---
     df_raw["usd_index"] = data["dxy"]
     df_raw["move_index"] = data["move"]
-    # Credit Spread Ratio: HYG (Risiko) vs. LQD (Sicherheit)
     df_raw["credit_spreads"] = data["lqd"] / data["hyg"] 
     
-    # --- 4. Ergänzende/Simulierte Werte für nicht-öffentliche APIs ---
+    # --- 4. Makro-Daten (Echtdaten via FRED API) ---
+    if FRED_API_KEY and FRED_API_KEY != "2c83a48a1f25006b221d9e8676118e52":
+        try:
+            fred = Fred(api_key=FRED_API_KEY)
+            # FEDFUNDS = Leitzins, DFII10 = 10Y Real Yields (TIPS)
+            fed_funds = fred.get_series('FEDFUNDS')
+            real_yields = fred.get_series('DFII10')
+            
+            df_raw["fed_policy"] = fed_funds.reindex(df_raw.index, method='ffill').ffill()
+            df_raw["real_yields"] = real_yields.reindex(df_raw.index, method='ffill').ffill()
+        except Exception:
+            # Fallback falls Key fehlerhaft ist
+            df_raw["fed_policy"] = 5.25
+            df_raw["real_yields"] = 2.0
+    else:
+        df_raw["fed_policy"] = 5.25
+        df_raw["real_yields"] = 2.0
+
+    # --- 5. Ergänzende Daten ---
     n = len(df_raw)
     np.random.seed(42)
-    df_raw["fed_policy"] = 5.25  # Aktuelles Zinsniveau
-    df_raw["real_yields"] = 2.0   # Reallendite
     df_raw["cot_commercials"] = np.random.normal(50000, 5000, n)
     df_raw["put_call_ratio"] = np.random.normal(0.7, 0.05, n)
     df_raw["fear_greed"] = 55.0
@@ -149,7 +164,7 @@ def fetch_real_market_data():
 
     # --- Normierung auf Perzentile (0 - 100) ---
     df_norm = pd.DataFrame(index=df_raw.index)
-    inverts = ["put_call_ratio", "vix_score", "pe_valuation", "credit_spreads", "move_index", "usd_index"]
+    inverts = ["put_call_ratio", "vix_score", "pe_valuation", "credit_spreads", "move_index", "usd_index", "fed_policy", "real_yields"]
     
     for col in df_raw.columns:
         should_invert = col in inverts
@@ -182,7 +197,7 @@ def fetch_real_market_data():
     return df_dashboard.round(1).dropna()
 
 # Daten laden
-with st.spinner('Lade echte Marktdaten von Yahoo Finance...'):
+with st.spinner('Lade Makro- & Marktdaten (yFinance & FRED)...'):
     df = fetch_real_market_data()
 
 heute = df.iloc[-1]
@@ -197,7 +212,7 @@ st.set_page_config(
 )
 
 st.title("📊 Market Regime Dashboard")
-st.caption(f"Stand: {df.index[-1].strftime('%d.%m.%Y')} | Asset: S&P 500 (Live-Daten)")
+st.caption(f"Stand: {df.index[-1].strftime('%d.%m.%Y')} | Asset: S&P 500 (Echtdaten)")
 st.markdown("---")
 
 col1, col2 = st.columns(2)
