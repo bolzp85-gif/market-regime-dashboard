@@ -93,7 +93,7 @@ def get_regime_label(score):
 # ==========================================
 
 # ⚠️ FÜGE HIER DEINEN KOSTENLOSEN FRED API-SCHLÜSSEL EIN:
-FRED_API_KEY = "DEIN_FRED_API_KEY_HIER"
+FRED_API_KEY = "2c83a48a1f25006b221d9e8676118e52"
 
 @st.cache_data(ttl=3600)
 def fetch_real_market_data():
