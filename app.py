@@ -136,7 +136,7 @@ def fetch_real_market_data():
     df_raw["credit_spreads"] = data["lqd"] / data["hyg"] 
     
     # --- 4. Makro-Daten (Echtdaten via FRED API) ---
-    if FRED_API_KEY and FRED_API_KEY != "2c83a48a1f25006b221d9e8676118e52":
+    if FRED_API_KEY and FRED_API_KEY != "DEIN_FRED_API_KEY_HIER":
         try:
             fred = Fred(api_key=FRED_API_KEY)
             # FEDFUNDS = Leitzins, DFII10 = 10Y Real Yields (TIPS)
