@@ -113,7 +113,10 @@ def safe_reindex_series(source_series: pd.Series, target_index: pd.Index) -> pd.
 # ==========================================
 
 # 🔑 DEIN API-KEY DIREKT IM CODE (Ersetze den Text in den Anführungszeichen durch deinen Key):
-FRED_API_KEY = st.secrets.get("FRED_API_KEY", "2c83a48a1f25006b221d9e8676118e52")
+try:
+    FRED_API_KEY = st.secrets["FRED_API_KEY"]
+except (KeyError, FileNotFoundError):
+    FRED_API_KEY = ""
 
 
 @st.cache_data(ttl=14400)
