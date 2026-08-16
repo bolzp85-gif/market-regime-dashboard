@@ -621,7 +621,7 @@ fig.add_trace(
 )
 fig.add_trace(
     go.Scatter(x=df_plot.index, y=df_plot["Asset_Price"], name=f"{selected_asset} Preis", 
-               line=dict(color='black', width=2)),
+               line=dict(color='green', width=2)),
     secondary_y=True,
 )
 
