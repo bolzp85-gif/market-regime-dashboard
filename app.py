@@ -34,6 +34,21 @@ ASSET_CONFIGS = {
             "Fundamentale_Faktoren": {"pe_valuation": 1.0}
         }
     },
+    "Nasdaq 100": {
+        "ticker": "NQ=F",  
+        "volatility_ticker": "^VXN",
+        "cot_code": "NASDAQ-100",  
+        "invert_inverts": ["vix_score", "pe_valuation", "credit_spreads", "move_index", "usd_index", "fed_policy", "real_yields"],
+        "Saeulen_Gewichte": {
+            "Makroekonomie": 0.25, "Positionierung": 0.20, "Marktinterna": 0.20,
+            "Technischer_Trend": 0.15, "Fundamentale_Faktoren": 0.10, "Fruehwarnindikatoren": 0.10
+        },
+        "Sub_Gewichte": {
+            "Positionierung": {"cot_commercials": 0.50, "fear_greed": 0.50},
+            "Marktinterna": {"advance_decline": 0.50, "vix_score": 0.50},
+            "Fundamentale_Faktoren": {"pe_valuation": 1.0}
+        }
+    },
     "Gold (XAU/USD)": {
         "ticker": "GC=F",
         "volatility_ticker": "^GVZ",
