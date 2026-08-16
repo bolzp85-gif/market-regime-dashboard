@@ -457,14 +457,59 @@ st.info(f"**Übergeordnete Regel:** {rule}")
 # --- TREIBER-ANALYSE (SÄULEN BREAKDOWN) ---
 st.markdown("---")
 st.subheader("🔍 Treiber-Analyse (Die 6 Säulen)")
+
+# Beschreibungs-Dictionary für die UI
+saeulen_details = {
+    "Makroekonomie": {
+        "quelle": "FRED API (Fed Funds, Real Yields) & Yahoo Finance (DXY)",
+        "funktion": "Bewertet das Zinsumfeld, die verfügbare Zentralbank-Liquidität und die Währungsstärke, um den übergeordneten Kapitalfluss zu bestimmen."
+    },
+    "Positionierung": {
+        "quelle": "CFTC CoT-Report (Commercials) & CNN Fear & Greed",
+        "funktion": "Misst Sentiment-Extrema (Angst vs. Gier) und die tatsächlichen Kapitalflüsse und Absicherungspositionen des 'Smart Money'."
+    },
+    "Marktinterna": {
+        "quelle": "Yahoo Finance (A/D-Line, OBV, Volatilität)",
+        "funktion": "Analysiert die 'Gesundheit' der Preisbewegung durch das Volumen-Momentum, Partizipation der Einzelwerte und implizite Volatilität."
+    },
+    "Technischer_Trend": {
+        "quelle": "Yahoo Finance (Preisdaten für MAs & RSI)",
+        "funktion": "Quantifiziert die rein technische Struktur, Trendstärke und Momentum-Übertreibungen auf Basis von gleitenden Durchschnitten."
+    },
+    "Fundamentale_Faktoren": {
+        "quelle": "FRED API (Öl-Lagerbestände) / Yahoo Finance (KGV-Proxy)",
+        "funktion": "Betrachtet harte Fundamentaldaten wie die makroökonomische Bewertung (KGV bei Indizes) oder Angebot/Nachfrage-Dynamiken (Lagerbestände bei Rohstoffen)."
+    },
+    "Fruehwarnindikatoren": {
+        "quelle": "Yahoo Finance (HYG/LQD, MOVE Index)",
+        "funktion": "Detektiert versteckten Stress im Finanzsystem (Kreditrisiko via High-Yield-Spreads, Anleihen-Volatilität), der dem Asset-Preis oft vorausläuft."
+    }
+}
+
 cols = st.columns(3)
 saeulen = [c for c in df_dash.columns if c.startswith("Saeule_")]
 
 for i, s_name in enumerate(saeulen):
     val = heute[s_name]
-    label = s_name.replace("Saeule_", "").replace("_", " ")
+    raw_name = s_name.replace("Saeule_", "")
+    label = raw_name.replace("_", " ")
     emoji = "🟢" if val > 60 else "🔴" if val < 40 else "🟡"
-    cols[i % 3].metric(label=f"{label} {emoji}", value=f"{val:.1f}")
+    
+    # Dynamische Gewichtung für das aktuell gewählte Asset abrufen
+    gewichtung = ASSET_CONFIGS[selected_asset]["Saeulen_Gewichte"].get(raw_name, 0) * 100
+    
+    with cols[i % 3]:
+        st.metric(label=f"{label} {emoji}", value=f"{val:.1f}")
+        
+        # Details-Bereich einfügen
+        if raw_name in saeulen_details:
+            with st.expander("Details & Setup"):
+                st.markdown(f"**⚖️ Gewichtung:** {gewichtung:.0f}%")
+                st.markdown(f"**📡 Quelle:** {saeulen_details[raw_name]['quelle']}")
+                st.markdown(f"**⚙️ Funktion:** {saeulen_details[raw_name]['funktion']}")
+        
+        # Unsichtbarer Platzhalter für eine gleichmäßige Optik
+        st.markdown("<br>", unsafe_allow_html=True) 
 
 # --- EXECUTION CHECKLISTE (Ergänzt) ---
 st.markdown("---")
