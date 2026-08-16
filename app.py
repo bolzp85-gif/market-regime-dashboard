@@ -478,7 +478,10 @@ saeulen_details = {
         "quelle": "FRED API & Yahoo Finance",
         "funktion": "Zinsumfeld, Zentralbank-Liquidität & Dollar-Stärke.",
         "links": [
-            ("FRED: 10Y Real Yields", "https://fred.stlouisfed.org/series/DFII10"),
+            ("FRED: Fed Total Assets (WALCL)", "https://fred.stlouisfed.org/series/WALCL"),
+            ("FRED: TGA Account (WTREGEN)", "https://fred.stlouisfed.org/series/WTREGEN"),
+            ("FRED: Reverse Repo (RRPONTSYD)", "https://fred.stlouisfed.org/series/RRPONTSYD"),
+            ("FRED: 10Y Real Yields (DFII10)", "https://fred.stlouisfed.org/series/DFII10"),
             ("FRED: Fed Funds Rate", "https://fred.stlouisfed.org/series/FEDFUNDS"),
             ("Yahoo: US Dollar Index (DXY)", "https://finance.yahoo.com/quote/DX-Y.NYB")
         ]
@@ -496,7 +499,9 @@ saeulen_details = {
         "funktion": "Marktbreite, Volumen-Strom und implizite Volatilität.",
         "links": [
             ("Yahoo: VIX (S&P Volatilität)", "https://finance.yahoo.com/quote/%5EVIX"),
-            ("Yahoo: VXN (Nasdaq Volatilität)", "https://finance.yahoo.com/quote/%5EVXN")
+            ("Yahoo: VXN (Nasdaq Volatilität)", "https://finance.yahoo.com/quote/%5EVXN"),
+            ("Yahoo: GVZ (Gold Volatilität)", "https://finance.yahoo.com/quote/%5EGVZ"),
+            ("Yahoo: OVX (Öl Volatilität)", "https://finance.yahoo.com/quote/%5EOVX")
         ]
     },
     "Technischer_Trend": {
@@ -507,11 +512,12 @@ saeulen_details = {
         ]
     },
     "Fundamentale_Faktoren": {
-        "quelle": "FRED API & Yahoo Finance",
+        "quelle": "FRED API, Multpl & WSJ",
         "funktion": "Bewertungs-KGVs & physikalische Rohstoff-Lagerbestände.",
         "links": [
             ("FRED: Crude Oil Stocks", "https://fred.stlouisfed.org/series/WCESTUS1"),
-            ("Multpl: S&P 500 PE Ratio", "https://www.multpl.com/s-p-500-pe-ratio")
+            ("Multpl: S&P 500 PE Ratio", "https://www.multpl.com/s-p-500-pe-ratio"),
+            ("WSJ: P/E Ratios (inkl. Nasdaq)", "https://www.wsj.com/market-data/stocks/peyields")
         ]
     },
     "Fruehwarnindikatoren": {
@@ -519,6 +525,7 @@ saeulen_details = {
         "funktion": "Kreditrisiko (High-Yield Spreads) & Anleihen-Stress.",
         "links": [
             ("Yahoo: HYG High Yield ETF", "https://finance.yahoo.com/quote/HYG"),
+            ("Yahoo: LQD Investment Grade ETF", "https://finance.yahoo.com/quote/LQD"),
             ("Yahoo: MOVE Index (Bond Vola)", "https://finance.yahoo.com/quote/%5EMOVE")
         ]
     }
