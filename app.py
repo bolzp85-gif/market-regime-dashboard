@@ -557,24 +557,55 @@ for i, s_name in enumerate(saeulen):
         
         st.markdown("<br>", unsafe_allow_html=True)
 
-# --- EXECUTION CHECKLISTE (Ergänzt) ---
+# --- INTRADAY EXECUTION CHECKLISTE (MAXIMALE VERSION) ---
 st.markdown("---")
-st.markdown("### 📋 Execution Checkliste")
+st.subheader("⚡ Intraday Execution Checkliste & Filter")
 
-with st.expander("🔍 Intraday Setup-Check durchgehen", expanded=True):
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        st.markdown("**1. Events & Struktur:**")
-        st.checkbox("Keine News in den nächsten 30 Min (EIA, FOMC, CPI).")
-        st.checkbox("Wochentags-Saisonalität berücksichtigt.")
-        st.checkbox("Verfallstermine gecheckt?")
+# 1. Sichere Datenextraktion (cast zu float verhindert Streamlit/Numpy Typen-Fehler)
+score_gesamt = float(heute.get("Gesamt_Score", 50))
+trend_wert = float(heute.get("Saeule_Technischer_Trend", 50))
+vola_wert = float(heute.get("Saeule_Fruehwarnindikatoren", 50))
+makro_wert = float(heute.get("Saeule_Makroekonomie", 50))
 
-    with col_c2:
-        st.markdown("**2. Technisches Timing (5m/15m):**")
-        st.checkbox("PWH, PWL & PDC markiert.")
-        st.checkbox("Orderflow im Chart (Absorption/Aggression) bestätigt Bias?")
-        st.checkbox("Trigger aus überkauft/-verkauft Zonen aktiv?")
-        st.checkbox("Stop-Loss via ATR kalkuliert?")
+# 2. Boolesche Logik für die Vorbelegung der Checkboxen (Defaults)
+trend_intakt = bool(trend_wert > 55)
+kein_bond_stress = bool(vola_wert > 35)
+makro_tailwind = bool(makro_wert > 50)
+
+col_c1, col_c2 = st.columns(2)
+
+with col_c1:
+    st.markdown("#### 1. Strukturelle Filter")
+    c1_val = st.checkbox("Trendkonformität (Preis über relevanten EMAs / Marktstruktur intakt)", value=trend_intakt, key="chk_trend_det")
+    c2_val = st.checkbox("Anleihen- & Kreditmärkte stabil (Kein akuter Bond-Stress via MOVE/HYG)", value=kein_bond_stress, key="chk_bond_det")
+    c3_val = st.checkbox(f"Makro-Umgebung im Rücken (Liquidität & Zinsen stützen die Richtung - Score: {makro_wert:.0f})", value=makro_tailwind, key="chk_makro_det")
+
+with col_c2:
+    st.markdown("#### 2. Timing & Risikomanagement")
+    c4_val = st.checkbox("Keine High-Impact News (CPI, FOMC, NFP) in den nächsten 60 Minuten", value=True, key="chk_news_det")
+    c5_val = st.checkbox("Kein Hexensabbat / Ketten-Verfall (Extreme Pinning- & Volatilitätsrisiken beachten)", value=True, key="chk_opex_det")
+    c6_val = st.checkbox("CRV (Chance-Risiko-Verhältnis) von mindestens 1:2 zum nächsten charttechnischen Ziel", value=True, key="chk_crv_det")
+    c7_val = st.checkbox("US-Eröffnung / Initial Balance abgewartet (Kein Trade direkt um 15:30 Uhr)", value=True, key="chk_time_det")
+
+# 3. Visuelles Feedback: Fortschrittsbalken
+st.markdown("<br>", unsafe_allow_html=True)
+erfuellte_kriterien = sum([c1_val, c2_val, c3_val, c4_val, c5_val, c6_val, c7_val])
+
+st.progress(erfuellte_kriterien / 7.0)
+st.caption(f"✅ **{erfuellte_kriterien} von 7 Kriterien erfüllt**")
+
+# 4. Live-Auswertung
+alle_kriterien_erfuellt = (erfuellte_kriterien == 7)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 5. Signalausgabe
+if alle_kriterien_erfuellt and score_gesamt > 55:
+    st.success("🟢 **EXECUTION FREIGABE (GO)**: Alle Filter grün. Setup entspricht dem definierten Market Regime und den Risikoparametern.")
+elif score_gesamt < 40:
+    st.error("🔴 **STOP / KEIN TRADE**: Das Marktregime steht auf Defense. Kapitalerhalt hat höchste Priorität.")
+else:
+    st.warning("🟡 **CAUTION / WARNUNG**: Gemischte Signale. Execution nur mit reduzierter Positionsgröße oder an exakten charttechnischen Extrempunkten.")
 
 # --- HISTORICAL PLOTLY CHART ---
 st.markdown("---")
