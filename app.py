@@ -557,20 +557,45 @@ for i, s_name in enumerate(saeulen):
         
         st.markdown("<br>", unsafe_allow_html=True)
 
+import pandas as pd
+import streamlit as st
+
 # --- INTRADAY EXECUTION CHECKLISTE (MAXIMALE VERSION) ---
 st.markdown("---")
 st.subheader("⚡ Intraday Execution Checkliste & Filter")
 
-# 1. Sichere Datenextraktion (cast zu float verhindert Streamlit/Numpy Typen-Fehler)
+# 1. Sichere Datenextraktion & Typen-Casting
 score_gesamt = float(heute.get("Gesamt_Score", 50))
 trend_wert = float(heute.get("Saeule_Technischer_Trend", 50))
 vola_wert = float(heute.get("Saeule_Fruehwarnindikatoren", 50))
 makro_wert = float(heute.get("Saeule_Makroekonomie", 50))
 
-# 2. Boolesche Logik für die Vorbelegung der Checkboxen (Defaults)
+# 2. Boolesche Logik für die Vorbelegung der Checkboxen
 trend_intakt = bool(trend_wert > 55)
 kein_bond_stress = bool(vola_wert > 35)
 makro_tailwind = bool(makro_wert > 50)
+
+# 3. Dynamische Kalender-Logik (Tagesprofil & Hexensabbat)
+heute_datum = pd.Timestamp.now(tz='Europe/Berlin')
+wochentag_index = heute_datum.weekday()
+
+# Hexensabbat-Check (3. Freitag in März, Juni, September, Dezember)
+ist_hexensabbat = (
+    heute_datum.month in [3, 6, 9, 12] and 
+    wochentag_index == 4 and 
+    15 <= heute_datum.day <= 21
+)
+# Wenn heute Hexensabbat ist, ist der Haken standardmäßig RAUS (False) zur Warnung
+opex_default = not ist_hexensabbat 
+
+wochentag_profile = {
+    0: "Montag: Preisfindung & Weekly Initial Balance (Erhöhte Gefahr von False Breakouts & Fake-Moves)",
+    1: "Dienstag: Trendetablierung (Statistisch hohe Wahrscheinlichkeit für die Bildung des finalen Wochenhochs/-tiefs)",
+    2: "Mittwoch: Trendfortsetzung oder Mid-Week Reversal (Oft Liquiditätsabgriffe & Richtungswechsel)",
+    3: "Donnerstag: Momentum & Volatilität (Hohe Wahrscheinlichkeit für starke Trendfortsetzung oder schnelle Reversals)",
+    4: "Freitag: Wochenschluss & Profit-Taking (Vorsicht vor erratischen Moves ab US-Mittag, Weekend-Risk & Optionsverfall)"
+}
+heutiges_profil = wochentag_profile.get(wochentag_index, "Wochenende: Märkte geschlossen")
 
 col_c1, col_c2 = st.columns(2)
 
@@ -579,27 +604,29 @@ with col_c1:
     c1_val = st.checkbox("Trendkonformität (Preis über relevanten EMAs / Marktstruktur intakt)", value=trend_intakt, key="chk_trend_det")
     c2_val = st.checkbox("Anleihen- & Kreditmärkte stabil (Kein akuter Bond-Stress via MOVE/HYG)", value=kein_bond_stress, key="chk_bond_det")
     c3_val = st.checkbox(f"Makro-Umgebung im Rücken (Liquidität & Zinsen stützen die Richtung - Score: {makro_wert:.0f})", value=makro_tailwind, key="chk_makro_det")
+    c4_val = st.checkbox(f"Statistisches Tagesprofil beachtet ({heutiges_profil})", value=True, key="chk_day_profile")
 
 with col_c2:
     st.markdown("#### 2. Timing & Risikomanagement")
-    c4_val = st.checkbox("Keine High-Impact News (CPI, FOMC, NFP) in den nächsten 60 Minuten", value=True, key="chk_news_det")
-    c5_val = st.checkbox("Kein Hexensabbat / Ketten-Verfall (Extreme Pinning- & Volatilitätsrisiken beachten)", value=True, key="chk_opex_det")
-    c6_val = st.checkbox("CRV (Chance-Risiko-Verhältnis) von mindestens 1:2 zum nächsten charttechnischen Ziel", value=True, key="chk_crv_det")
-    c7_val = st.checkbox("US-Eröffnung / Initial Balance abgewartet (Kein Trade direkt um 15:30 Uhr)", value=True, key="chk_time_det")
+    c5_val = st.checkbox("Keine High-Impact News (CPI, FOMC, NFP) in den nächsten 60 Minuten", value=True, key="chk_news_det")
+    # Dynamischer Opex-Filter
+    c6_val = st.checkbox("Kein Hexensabbat / Ketten-Verfall (Dritter Freitag in März, Juni, Sept., Dez. – Extreme Pinning- & Volatilitätsrisiken beachten)", value=opex_default, key="chk_opex_det")
+    c7_val = st.checkbox("CRV (Chance-Risiko-Verhältnis) von mindestens 1:2 zum nächsten charttechnischen Ziel", value=True, key="chk_crv_det")
+    c8_val = st.checkbox("US-Eröffnung / Initial Balance abgewartet (Kein Trade direkt um 15:30 Uhr)", value=True, key="chk_time_det")
 
-# 3. Visuelles Feedback: Fortschrittsbalken
+# 4. Visuelles Feedback: Fortschrittsbalken
 st.markdown("<br>", unsafe_allow_html=True)
-erfuellte_kriterien = sum([c1_val, c2_val, c3_val, c4_val, c5_val, c6_val, c7_val])
+erfuellte_kriterien = sum([c1_val, c2_val, c3_val, c4_val, c5_val, c6_val, c7_val, c8_val])
 
-st.progress(erfuellte_kriterien / 7.0)
-st.caption(f"✅ **{erfuellte_kriterien} von 7 Kriterien erfüllt**")
+st.progress(erfuellte_kriterien / 8.0)
+st.caption(f"✅ **{erfuellte_kriterien} von 8 Kriterien erfüllt**")
 
-# 4. Live-Auswertung
-alle_kriterien_erfuellt = (erfuellte_kriterien == 7)
+# 5. Live-Auswertung
+alle_kriterien_erfuellt = (erfuellte_kriterien == 8)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 5. Signalausgabe
+# 6. Signalausgabe (Konsistenz: Score muss über 55 liegen für einen klaren GO)
 if alle_kriterien_erfuellt and score_gesamt > 55:
     st.success("🟢 **EXECUTION FREIGABE (GO)**: Alle Filter grün. Setup entspricht dem definierten Market Regime und den Risikoparametern.")
 elif score_gesamt < 40:
