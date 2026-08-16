@@ -469,35 +469,58 @@ col_b2.metric("Positionsgröße", pos_size)
 col_b3.metric("Fokus", "Trend-Follow" if abs(score - 50) > 15 else "Mean-Reversion")
 st.info(f"**Übergeordnete Regel:** {rule}")
 
-# --- TREIBER-ANALYSE (SÄULEN BREAKDOWN) ---
+# --- TREIBER-ANALYSE MIT LIVE-LINKS & ROHWERTEN ---
 st.markdown("---")
 st.subheader("🔍 Treiber-Analyse (Die 6 Säulen)")
 
-# Beschreibungs-Dictionary für die UI
 saeulen_details = {
     "Makroekonomie": {
-        "quelle": "FRED API (Fed Funds, Real Yields) & Yahoo Finance (DXY)",
-        "funktion": "Bewertet das Zinsumfeld, die verfügbare Zentralbank-Liquidität und die Währungsstärke, um den übergeordneten Kapitalfluss zu bestimmen."
+        "quelle": "FRED API & Yahoo Finance",
+        "funktion": "Zinsumfeld, Zentralbank-Liquidität & Dollar-Stärke.",
+        "links": [
+            ("FRED: 10Y Real Yields", "https://fred.stlouisfed.org/series/DFII10"),
+            ("FRED: Fed Funds Rate", "https://fred.stlouisfed.org/series/FEDFUNDS"),
+            ("Yahoo: US Dollar Index (DXY)", "https://finance.yahoo.com/quote/DX-Y.NYB")
+        ]
     },
     "Positionierung": {
-        "quelle": "CFTC CoT-Report (Commercials) & CNN Fear & Greed",
-        "funktion": "Misst Sentiment-Extrema (Angst vs. Gier) und die tatsächlichen Kapitalflüsse und Absicherungspositionen des 'Smart Money'."
+        "quelle": "CFTC CoT-Report & CNN Fear & Greed",
+        "funktion": "Institutional Commercial Positionierung & Retail-Sentiment.",
+        "links": [
+            ("CFTC: CoT Reports Main", "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm"),
+            ("CNN: Fear & Greed Index", "https://edition.cnn.com/markets/fear-and-greed")
+        ]
     },
     "Marktinterna": {
-        "quelle": "Yahoo Finance (A/D-Line, OBV, Volatilität)",
-        "funktion": "Analysiert die 'Gesundheit' der Preisbewegung durch das Volumen-Momentum, Partizipation der Einzelwerte und implizite Volatilität."
+        "quelle": "Yahoo Finance",
+        "funktion": "Marktbreite, Volumen-Strom und implizite Volatilität.",
+        "links": [
+            ("Yahoo: VIX (S&P Volatilität)", "https://finance.yahoo.com/quote/%5EVIX"),
+            ("Yahoo: VXN (Nasdaq Volatilität)", "https://finance.yahoo.com/quote/%5EVXN")
+        ]
     },
     "Technischer_Trend": {
-        "quelle": "Yahoo Finance (Preisdaten für MAs & RSI)",
-        "funktion": "Quantifiziert die rein technische Struktur, Trendstärke und Momentum-Übertreibungen auf Basis von gleitenden Durchschnitten."
+        "quelle": "Yahoo Finance (Preisdaten)",
+        "funktion": "Gleitende Durchschnitte, RSI & Trendstruktur.",
+        "links": [
+            ("Yahoo: Chart & Technicals", f"https://finance.yahoo.com/quote/{ASSET_CONFIGS[selected_asset]['ticker']}")
+        ]
     },
     "Fundamentale_Faktoren": {
-        "quelle": "FRED API (Öl-Lagerbestände) / Yahoo Finance (KGV-Proxy)",
-        "funktion": "Betrachtet harte Fundamentaldaten wie die makroökonomische Bewertung (KGV bei Indizes) oder Angebot/Nachfrage-Dynamiken (Lagerbestände bei Rohstoffen)."
+        "quelle": "FRED API & Yahoo Finance",
+        "funktion": "Bewertungs-KGVs & physikalische Rohstoff-Lagerbestände.",
+        "links": [
+            ("FRED: Crude Oil Stocks", "https://fred.stlouisfed.org/series/WCESTUS1"),
+            ("Multpl: S&P 500 PE Ratio", "https://www.multpl.com/s-p-500-pe-ratio")
+        ]
     },
     "Fruehwarnindikatoren": {
-        "quelle": "Yahoo Finance (HYG/LQD, MOVE Index)",
-        "funktion": "Detektiert versteckten Stress im Finanzsystem (Kreditrisiko via High-Yield-Spreads, Anleihen-Volatilität), der dem Asset-Preis oft vorausläuft."
+        "quelle": "Yahoo Finance",
+        "funktion": "Kreditrisiko (High-Yield Spreads) & Anleihen-Stress.",
+        "links": [
+            ("Yahoo: HYG High Yield ETF", "https://finance.yahoo.com/quote/HYG"),
+            ("Yahoo: MOVE Index (Bond Vola)", "https://finance.yahoo.com/quote/%5EMOVE")
+        ]
     }
 }
 
@@ -509,22 +532,23 @@ for i, s_name in enumerate(saeulen):
     raw_name = s_name.replace("Saeule_", "")
     label = raw_name.replace("_", " ")
     emoji = "🟢" if val > 60 else "🔴" if val < 40 else "🟡"
-    
-    # Dynamische Gewichtung für das aktuell gewählte Asset abrufen
     gewichtung = ASSET_CONFIGS[selected_asset]["Saeulen_Gewichte"].get(raw_name, 0) * 100
     
     with cols[i % 3]:
         st.metric(label=f"{label} {emoji}", value=f"{val:.1f}")
         
-        # Details-Bereich einfügen
         if raw_name in saeulen_details:
-            with st.expander("Details & Setup"):
+            details = saeulen_details[raw_name]
+            with st.expander("Details, Daten & Links"):
                 st.markdown(f"**⚖️ Gewichtung:** {gewichtung:.0f}%")
-                st.markdown(f"**📡 Quelle:** {saeulen_details[raw_name]['quelle']}")
-                st.markdown(f"**⚙️ Funktion:** {saeulen_details[raw_name]['funktion']}")
+                st.markdown(f"**⚙️ Funktion:** {details['funktion']}")
+                
+                # Externe Klick-Links einfügen
+                st.markdown("**🔗 Live-Datenquellen öffnen:**")
+                for link_title, url in details["links"]:
+                    st.markdown(f"• [{link_title}]({url})")
         
-        # Unsichtbarer Platzhalter für eine gleichmäßige Optik
-        st.markdown("<br>", unsafe_allow_html=True) 
+        st.markdown("<br>", unsafe_allow_html=True)
 
 # --- EXECUTION CHECKLISTE (Ergänzt) ---
 st.markdown("---")
