@@ -562,7 +562,7 @@ st.markdown("---")
 st.subheader("⚡ Intraday Execution Checkliste & Filter")
 
 # 1. Sichere Datenextraktion & Typen-Casting
-score_gesamt = float(heute.get("Gesamt_Score", 50))
+score_gesamt = float(heute.get("Final_Regime_Score", 50))
 trend_wert = float(heute.get("Saeule_Technischer_Trend", 50))
 vola_wert = float(heute.get("Saeule_Fruehwarnindikatoren", 50))
 makro_wert = float(heute.get("Saeule_Makroekonomie", 50))
