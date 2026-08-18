@@ -246,7 +246,51 @@ def safe_reindex_series(source_series: pd.Series, target_index: pd.Index) -> pd.
     return reindexed
 
 # ==========================================
-# 3. REAL MARKET DATA FETCHERS
+# 3. UI INTEGRATION: GOOGLE TRENDS SENTIMENT
+# ==========================================
+
+st.markdown("---")
+st.subheader("🌐 Retail Sentiment (Google Trends)")
+st.caption("Ein unabhängiger Kontraindikator basierend auf dem Suchverhalten von Privatanlegern.")
+
+# Aufruf der Funktion mit dem im Dashboard gewählten Asset
+contra_score, net_spread, trends_live = fetch_google_trends_sentiment(selected_asset)
+
+col_gt1, col_gt2, col_gt3 = st.columns(3)
+
+with col_gt1:
+    st.metric(
+        label="Google Retail Score (0-100)", 
+        value=f"{contra_score} / 100", 
+        delta=f"Net Spread: {net_spread:+.2f} σ",
+        delta_color="inverse" # Rot bei positivem Spread (Euphorie), Grün bei negativem (Panik)
+    )
+
+with col_gt2:
+    # Interpretation des Scores
+    if contra_score >= 65:
+        st.success("🟢 **Panik-Ausschlag (Boden-Aussicht):** Angst-Überhang im Retail-Segment. Potenzielles Kauf-Setup.")
+    elif contra_score <= 35:
+        st.error("🔴 **Gier-Ausschlag (Top-Gefahr):** Retail-Suchvolumen signalisiert Überhitzung. Vorsicht vor Long-Positionen.")
+    else:
+        st.info("🟡 **Ausgeglichenes Sentiment:** Keines der Extrema erreicht (Rauschen).")
+
+with col_gt3:
+    # Anzeige der getrackten Datenpunkte für Transparenz
+    cfg = TREND_KEYWORD_MAP.get(selected_asset, TREND_KEYWORD_MAP["S&P 500"])
+    bull_str = ", ".join([f"'{k}'" for k in cfg['bull']])
+    bear_str = ", ".join([f"'{k}'" for k in cfg['bear']])
+    
+    st.markdown(f"""
+    **🔍 Getrackte Parameter:**
+    * **Region:** `{cfg['geo']}`
+    * **Euphorie (Bull):** {bull_str}
+    * **Panik (Bear):** {bear_str}
+    * **Status:** {'🟢 Live' if trends_live else '🔴 Offline/Fallback'}
+    """)
+
+# ==========================================
+# 3.1 REAL MARKET DATA FETCHERS
 # ==========================================
 
 FRED_API_KEY = ""
