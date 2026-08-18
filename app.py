@@ -9,6 +9,7 @@ import yfinance as yf
 from fredapi import Fred
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from pytrends.request import TrendReq
 
 # ==========================================
 # 0. STREAMLIT CONFIG
@@ -99,7 +100,95 @@ VOLA_THRESHOLDS = {
 }
 
 # ==========================================
-# 2. MATHEMATICAL CORE ENGINES & HELPERS
+# 2. GOOGLE TRENDS NET-SENTIMENT SPREAD ENGINE
+# ==========================================
+
+# Asset-spezifische Konfiguration: Region & Keyword-Sets (Max 4 Keywords pro Asset)
+TREND_KEYWORD_MAP = {
+    "S&P 500": {
+        "geo": "US",
+        "lang": "en-US",
+        "bull": ["buy stocks", "buy the dip"],        
+        "bear": ["stock market crash", "recession"]  
+    },
+    "Nasdaq 100": {
+        "geo": "US",
+        "lang": "en-US",
+        "bull": ["tech stocks", "buy the dip"],       
+        "bear": ["market crash", "tech bubble"]       
+    },
+    "Gold (XAU/USD)": {
+        "geo": "DE",
+        "lang": "de-DE",
+        "bull": ["Gold kaufen", "Goldmünzen"],        
+        "bear": ["Gold verkaufen", "Altgold"]         
+    },
+    "WTI Crude Oil": {
+        "geo": "DE",
+        "lang": "de-DE",
+        "bull": ["Heizöl kaufen", "Spritpreise"],     
+        "bear": ["Ölpreis crash", "Öl verkaufen"]     
+    }
+}
+
+@st.cache_data(ttl=21600)  # 6-Stunden-Cache (Schützt vor Google IP-Sperren)
+def fetch_google_trends_sentiment(asset_name: str):
+    """
+    Holt dynamisch US- oder DE-Trends-Daten, berechnet den aggregierten Z-Score
+    und liefert den skalierten Kontraindikator-Score (0-100).
+    """
+    # Standard-Fallback auf S&P 500, falls Asset nicht in Map
+    cfg = TREND_KEYWORD_MAP.get(asset_name, TREND_KEYWORD_MAP["S&P 500"])
+    
+    geo_loc = cfg["geo"]
+    lang_loc = cfg["lang"]
+    bull_kws = cfg["bull"]
+    bear_kws = cfg["bear"]
+    all_kws = bull_kws + bear_kws
+
+    try:
+        pytrends = TrendReq(hl=lang_loc, tz=360)
+        # timeframe='today 3-m' erzwingt tägliche Datenpunkte (wichtig für die Reaktionszeit!)
+        pytrends.build_payload(all_kws, timeframe='today 3-m', geo=geo_loc)
+        df_trends = pytrends.interest_over_time()
+        
+        if df_trends.empty:
+            return 50.0, 0.0, False
+
+        # Google's temporäre 'isPartial'-Spalte entfernen, um Berechnungsfehler zu vermeiden
+        if 'isPartial' in df_trends.columns:
+            df_trends = df_trends.drop(columns=['isPartial'])
+
+        # Z-Score Berechnung (Rolling 21 Tage = ca. 1 Handelsmonat)
+        def calc_z(series):
+            mean = series.rolling(21, min_periods=5).mean()
+            std = series.rolling(21, min_periods=5).std().replace(0, 1e-8)
+            return (series - mean) / std
+
+        valid_bull = [kw for kw in bull_kws if kw in df_trends.columns]
+        valid_bear = [kw for kw in bear_kws if kw in df_trends.columns]
+
+        if not valid_bull or not valid_bear:
+            return 50.0, 0.0, False
+
+        # Gemittelte Z-Scores der jeweiligen Wortgruppen
+        z_bull = sum(calc_z(df_trends[kw]) for kw in valid_bull) / len(valid_bull)
+        z_bear = sum(calc_z(df_trends[kw]) for kw in valid_bear) / len(valid_bear)
+
+        net_spread = z_bull - z_bear
+        latest_spread = float(net_spread.dropna().iloc[-1])
+
+        # Score-Berechnung: Invertiert! Hoher Spread (Gier) = Niedriger Score (Top-Gefahr)
+        contrarian_score = float(np.clip(50.0 - (latest_spread * 15.0), 0.0, 100.0))
+
+        return round(contrarian_score, 1), round(latest_spread, 2), True
+
+    except Exception as e:
+        # Fallback bei Verbindungsproblemen zu Google
+        return 50.0, 0.0, False
+
+# ==========================================
+# 2.1 MATHEMATICAL CORE ENGINES & HELPERS
 # ==========================================
 
 def strip_timezone(datetime_index_or_series):
