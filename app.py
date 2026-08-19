@@ -2835,8 +2835,7 @@ wochentag_profile = {
 
 heutiges_profil = (
     wochentag_profile.get(
-        w o chentag_index
-        if False else wochentag_index,
+        wochentag_index,
         "Wochenende: Märkte geschlossen"
     )
 )
