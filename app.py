@@ -22,6 +22,8 @@ st.set_page_config(
     layout="centered"
 )
 
+st.success("STREAMLIT STARTET")
+st.write("Version des Dashboards: TEST 1")
 
 # ============================================================
 # 1. ASSET CONFIGURATIONS & WEIGHTS
