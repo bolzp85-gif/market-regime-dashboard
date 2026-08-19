@@ -7,3 +7,6 @@ fredapi>=0.5.0
 requests>=2.28.0
 plotly
 pytrends
+lxml
+html5lib
+beautifulsoup4
