@@ -2897,8 +2897,7 @@ with b:
     st.markdown("#### 2. Timing & Risikomanagement")
 
     x5 = st.checkbox(
-        "Keine High-Impact News "
-        "(CPI, FOMC, NFP) in den nächsten 60 Minuten",
+        "Keine High-Impact News (CPI, FOMC, NFP) in den nächsten 60 Minuten",
         value=True,
         key="chk_news_det"
     )
@@ -2910,8 +2909,7 @@ with b:
     )
 
     x7 = st.checkbox(
-        "CRV mindestens 1:2 "
-        "zum nächsten charttechnischen Ziel",
+        "CRV mindestens 1:2 zum nächsten charttechnischen Ziel",
         value=True,
         key="chk_crv_det"
     )
