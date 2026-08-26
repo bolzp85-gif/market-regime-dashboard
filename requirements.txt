@@ -10,3 +10,4 @@ pytrends
 lxml
 html5lib
 beautifulsoup4
+trendspy>=0.1.6
