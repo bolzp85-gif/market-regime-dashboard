@@ -1456,11 +1456,6 @@ def fetch_multi_asset_data(selected_asset):
             'yFinance (Preis & Tech)': False
         }
 
-    if data is None or data.empty:
-        return pd.DataFrame(), {
-            "yFinance (Preis & Tech)": False
-        }
-
     close = extract_yfinance_field(
         data,
         "Close"
